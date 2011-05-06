@@ -9,7 +9,7 @@ void *safeMalloc(int s)
 	void *retval = malloc(s);
 	if(!retval)
 	{
-		fprintf(stderr, "Failed to allocate %d bytes of memory.\n", s);
+		printf("Failed to allocate %d bytes of memory.\n", s);
 		exit(1);
 	}
 	return retval;
@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 
 	if(argc < 2)
 	{
-		fprintf(stderr, "Usage: execute command\nCommand must be specified as a single parameter, e.g. execute \"/bin/ls -l\"\n");
+		puts("Usage: execute command\nCommand must be specified as a single parameter, e.g. execute \"/bin/ls -l\"\n");
 		return 0;
 	}
 
