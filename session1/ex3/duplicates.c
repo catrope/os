@@ -51,7 +51,7 @@ void examineDir(char * name)
 
 int compareSizes(const void * a, const void * b)
 {
-	return ((struct file_size *)a)->size > ((struct file_size *)b)->size;
+	return ((struct file_size *)a)->size - ((struct file_size *)b)->size;
 }
 
 void compareTwoFiles(char * a, char * b)
