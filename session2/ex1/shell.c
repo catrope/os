@@ -24,7 +24,7 @@ struct argument
 
 struct command
 {
-	struct argument *firstarg; /* Pointer to the head of the argument list, or NULL if this is a redirection */ 
+	struct argument *firstArg; /* Pointer to the head of the argument list, or NULL if this is a redirection */ 
 	struct command *next;
 };
 
@@ -42,7 +42,7 @@ void *safeMalloc(size_t s)
 struct command *newCommand()
 {
 	struct command *c = safeMalloc(sizeof(struct command));
-	c->firstarg = NULL;
+	c->firstArg = NULL;
 	c->next = NULL;
 	return c;
 }
@@ -114,7 +114,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 						argS->next = NULL;
 						
 						/* Insert argS into the arg list, setting up the list if needed */
-						PUSH(argS, cCurrent->firstarg, curTail);
+						PUSH(argS, cCurrent->firstArg, curTail);
 					}
 					
 					if(*p == '|' || *p == '\0')
