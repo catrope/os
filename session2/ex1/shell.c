@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "command.h"
+#include "execute.h"
 
 int main(int argc, char **argv)
 {
@@ -11,5 +12,6 @@ int main(int argc, char **argv)
 		return EXIT_SUCCESS;
 	}
 	c = parseCommandLine(argv[1]);
+	executeCommand(c);
 	return EXIT_SUCCESS;
 }
