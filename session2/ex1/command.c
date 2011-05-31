@@ -170,11 +170,11 @@ struct command *parseCommandLine(const char *commandLine)
 				
 				/* Determine the redirection mode */
 				if(*p == '<')
-					rCurrent->mode = IN;
+					rCurrent->mode = READ;
 				else if(p[1] == '>')
-					rCurrent->mode = OUTAPPEND;
+					rCurrent->mode = WRITE | APPEND;
 				else
-					rCurrent->mode = OUT;
+					rCurrent->mode = WRITE;
 				
 				/* Look back for an FD number.
 				 * The uneaten string before the < or > MUST be
@@ -192,7 +192,7 @@ struct command *parseCommandLine(const char *commandLine)
 				}
 				else
 					/* Use the default FD for the selected mode */
-					rCurrent->fromfd = rCurrent->mode == IN ? 0 : 1;
+					rCurrent->fromfd = rCurrent->mode == READ ? 0 : 1;
 				
 				/* If we passed an argument or file before, push it.
 				 * This is done at this stage so we can eat the FD first.
@@ -216,7 +216,7 @@ struct command *parseCommandLine(const char *commandLine)
 				
 				
 				/* Set p past the <, > or >> . We expect a file after this */
-				p += rCurrent->mode == OUTAPPEND ? 2 : 1;
+				p += rCurrent->mode == (WRITE | APPEND) ? 2 : 1;
 				last = p;
 				inRedir = 1;
 				break;

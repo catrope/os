@@ -2,7 +2,10 @@
 #define COMMAND_H
 
 #include <sys/types.h>
-enum redirMode { IN, OUT, OUTAPPEND };
+#define READ 1
+#define WRITE 2
+#define APPEND 4
+#define PIPE 8
 
 #define BACKGROUND 1
 #define PIPED 2
@@ -12,7 +15,7 @@ struct redirection
 	int fromfd; /* FD being redirected */
 	char *filename; /* Filename to redirect to, or NULL if redirecting to an FD */
 	int tofd; /* FD to redirect to. Only used if filename is NULL */
-	enum redirMode mode; /* Mode to open the target in */
+	int mode; /* Bitmap of READ, WRITE, APPEND, PIPE */
 	struct redirection *next;
 };
 
