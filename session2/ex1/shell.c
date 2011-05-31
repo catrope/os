@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+#define PUSH(p, head, tail) do { if(tail) { tail->next = p; tail = p; } else head = tail = p; } while(0)
+
 enum redirMode { IN, OUT, OUTAPPEND };
 
 struct redirection
@@ -112,29 +114,14 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 						argS->next = NULL;
 						
 						/* Insert argS into the arg list, setting up the list if needed */
-						/* TODO: Generalize */
-						if(curTail)
-						{
-							curTail->next = argS;
-							curTail = argS;
-						}
-						else
-							cCurrent->firstarg = curTail = argS;
+						PUSH(argS, cCurrent->firstarg, curTail);
 					}
 					
 					if(*p == '|' || *p == '\0')
 					{
 						/* This is the end of the command */
 						/* Insert the previous command into the command list */
-						/* TODO: Generalize */
-						if(cTail)
-						{
-							cTail->next = cCurrent;
-							cTail = cCurrent;
-						}
-						else
-							/* Set up the list */
-							cHead = cTail = cCurrent;
+						PUSH(cCurrent, cHead, cTail);
 					}
 					if(*p == '|')
 					{
@@ -166,16 +153,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 					}
 					
 					/* Add the redirection to the list */
-					/* TODO: Generalize */
-					if(rTail)
-					{
-						rTail->next = rCurrent;
-						rTail = rCurrent;
-					}
-					else
-						/* Set up the list */
-						rHead = rTail = rCurrent;
-					
+					PUSH(rCurrent, rHead, rTail);					
 					inRedir = 0;
 				}
 				
