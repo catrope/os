@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#define PUSH(p, head, tail) do { if(tail) { tail->next = p; tail = p; } else head = tail = p; } while(0)
+#define PUSH(p, head, tail) do { if(tail) { (tail)->next = (p); (tail) = (p); } else (head) = (tail) = (p); } while(0)
 
 enum redirMode { IN, OUT, OUTAPPEND };
 
@@ -60,6 +60,17 @@ char *substring(char *start, char *end)
 	return retval;
 }
 
+void pushArg(char *start, char *end, struct argument **head, struct argument **tail)
+{
+	char *arg;
+	struct argument *argS;
+	arg = substring(start, end);
+	argS = safeMalloc(sizeof(struct argument));
+	argS->s = arg;
+	argS->next = NULL;
+	PUSH(argS, *head, *tail);
+}
+
 /**
  * Parse a command line, recognizing pipes and I/O redirection, and segmenting
  * argument lists.
@@ -71,8 +82,8 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 {
 	struct command *cHead = NULL, *cTail = NULL, *cCurrent;
 	struct redirection *rHead = NULL, *rTail = NULL, *rCurrent = NULL;
-	struct argument *argS, *curTail = NULL;
-	char *copy, *p, *q, *last, *fdString, *arg;
+	struct argument *curTail = NULL;
+	char *copy, *p, *q, *last, *fdString;
 	int fd;
 	
 	int done = 0, inSingleQuotes = 0, inDoubleQuotes = 0, inRedir = 0, wasBackslash;
@@ -105,24 +116,13 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				{
 					/* We're in a command, and just passed an argument. */
 					if(p - last > 0)
-					{
-						/* Extract the argument */
-						arg = substring(last, p);
-						/* Create a struct argument for it */
-						argS = safeMalloc(sizeof(struct argument));
-						argS->s = arg;
-						argS->next = NULL;
-						
-						/* Insert argS into the arg list, setting up the list if needed */
-						PUSH(argS, cCurrent->firstArg, curTail);
-					}
+						pushArg(last, p, &cCurrent->firstArg, &curTail);
 					
 					if(*p == '|' || *p == '\0')
-					{
 						/* This is the end of the command */
 						/* Insert the previous command into the command list */
 						PUSH(cCurrent, cHead, cTail);
-					}
+					
 					if(*p == '|')
 					{
 						/* Create a new command */
@@ -153,7 +153,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 					}
 					
 					/* Add the redirection to the list */
-					PUSH(rCurrent, rHead, rTail);					
+					PUSH(rCurrent, rHead, rTail);
 					inRedir = 0;
 				}
 				
@@ -162,7 +162,6 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				break;
 			case '>':
 			case '<':
-				/* Need to clean up previous arg here too. Bleeeehhhh. Will fix after reorg */
 				if(inSingleQuotes || inDoubleQuotes)
 				{
 					p++;
@@ -175,6 +174,11 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				
 				/* This is a redirection */
 				inRedir = 1;
+				
+				/* Push the argument we just passed, if any */
+				if(p - last > 0)
+					pushArg(last, p, &cCurrent->firstArg, &curTail);
+				
 				/* Create a redirection object */
 				rCurrent = safeMalloc(sizeof(struct redirection));
 				rCurrent->next = NULL;
