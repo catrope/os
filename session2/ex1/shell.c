@@ -46,6 +46,19 @@ struct command *newCommand()
 }
 
 /**
+ * Allocates a new string for the substring from start to end.
+ * start and end must point in the same string.
+ * Returned string includes start but not end, and is \0-terminated
+ */
+char *substring(char *start, char *end)
+{
+	char *retval = safeMalloc((end - start + 1)*sizeof(char));
+	strncpy(retval, start, end - start);
+	retval[end - start] = '\0';
+	return retval;
+}
+
+/**
  * Parse a command line, recognizing pipes and I/O redirection, and segmenting
  * argument lists.
  * @param commandLine Command line
@@ -93,12 +106,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 						break;
 					}
 					
-					/* Extract the file name */
-					/* TODO: Generalize */
-					rCurrent->filename = safeMalloc((p - last + 1)*sizeof(char));
-					strncpy(rCurrent->filename, last, p - last);
-					rCurrent->filename[p - last] = '\0';
-					
+					rCurrent->filename = substring(last, p);
 					/* Check if file is an FD (of the form &123) */
 					if(rCurrent->filename[0] == '&' && isdigit(rCurrent->filename[1]))
 					{
@@ -137,11 +145,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				if(p - last > 0)
 				{
 					/* Extract the argument */
-					/* TODO: Generalize */
-					arg = safeMalloc((p - last + 1)*sizeof(char));
-					strncpy(arg, last, p - last);
-					arg[p - last] = '\0';
-					
+					arg = substring(last, p);
 					/* Create a struct argument for it */
 					argS = safeMalloc(sizeof(struct argument));
 					argS->s = arg;
