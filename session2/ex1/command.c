@@ -10,6 +10,7 @@ static struct command *newCommand()
 {
 	struct command *c = safeMalloc(sizeof(struct command));
 	c->firstArg = NULL;
+	c->redir = NULL;
 	c->mode = 0;
 	c->next = NULL;
 	return c;
@@ -62,10 +63,10 @@ static void pushFile(char *start, char *end, struct redirection *current, struct
 	PUSH(current, *head, *tail);
 }
 
-struct command *parseCommandLine(const char *commandLine, struct redirection **redirs)
+struct command *parseCommandLine(const char *commandLine)
 {
 	struct command *cHead = NULL, *cTail = NULL, *cCurrent, *chainStart = NULL;
-	struct redirection *rHead = NULL, *rTail = NULL, *rCurrent = NULL;
+	struct redirection *rTail = NULL, *rCurrent = NULL;
 	struct argument *curTail = NULL;
 	char *copy, *p, *q, *last, *fdString;
 	int fd;
@@ -146,7 +147,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 					if(p - last > 0)
 					{
 						/* We have found a file name for our redirection */
-						pushFile(last, p, rCurrent, &rHead, &rTail);
+						pushFile(last, p, rCurrent, &cCurrent->redir, &rTail);
 						inRedir = 0;
 					}
 				}
@@ -200,7 +201,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				{
 					/* Push the file we just passed, if any */
 					if(p - last > 0)
-						pushFile(last, p, rCurrent, &rHead, &rTail);
+						pushFile(last, p, rCurrent, &cCurrent->redir, &rTail);
 					else
 					{
 						/* TODO: Error */
@@ -251,6 +252,5 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 		}
 	}
 	
-	*redirs = rHead;
 	return cHead;
 }

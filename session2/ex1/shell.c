@@ -5,12 +5,11 @@
 int main(int argc, char **argv)
 {
 	struct command *c;
-	struct redirection *r;
 	if(argc < 2)
 	{
 		printf("Usage: shell cmdline\n");
 		return EXIT_SUCCESS;
 	}
-	c = parseCommandLine(argv[1], &r);
+	c = parseCommandLine(argv[1]);
 	return EXIT_SUCCESS;
 }

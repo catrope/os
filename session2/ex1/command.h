@@ -1,6 +1,7 @@
 #ifndef COMMAND_H
 #define COMMAND_H
 
+#include <sys/types.h>
 enum redirMode { IN, OUT, OUTAPPEND };
 
 #define BACKGROUND 1
@@ -23,9 +24,10 @@ struct argument
 
 struct command
 {
-	struct argument *firstArg; /* Pointer to the head of the argument list, or NULL if this is a redirection */ 
+	struct argument *firstArg; /* Pointer to the head of the argument list */
+	struct redirection *redir; /* Pointer to the head of the redirection list or NULL if no redirections */
 	int mode; /* Bitmap with BACKGROUND, PIPED or both or neither */
-	pid_t pid;
+	pid_t pid; /* PID once started */
 	struct command *next;
 };
 
@@ -33,9 +35,8 @@ struct command
  * Parse a command line, recognizing pipes and I/O redirection, and segmenting
  * argument lists.
  * @param commandLine Command line
- * @param redirs Set to a pointer to the head of a linked list of redirections
  * @return Pointer to the head of a linked list of commands
  */
-extern struct command *parseCommandLine(const char *commandLine, struct redirection **redirs);
+extern struct command *parseCommandLine(const char *commandLine);
 
 #endif /* COMMAND_H */
