@@ -57,12 +57,15 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 	struct command *cHead = NULL, *cTail = NULL, *cCurrent;
 	struct redirection *rHead = NULL, *rTail = NULL, *rCurrent = NULL;
 	struct argument *argS, *curTail = NULL;
-	const char *p, *last, *fdString, *fileStart, *fileEnd;
-	char *arg;
-	int fd, done = 0;
+	char *copy, *p, *q, *last, *fdString, *fileStart, *fileEnd, *arg;
+	int fd;
+	
+	int done = 0, inSingleQuotes = 0, inDoubleQuotes = 0, wasBackslash;
 
+	copy = safeMalloc((strlen(commandLine) + 1)*sizeof(char));
+	strcpy(copy, commandLine);
 	cCurrent = newCommand();
-	p = last = commandLine;
+	p = last = copy;
 	while(!done)
 	{
 		switch(*p)
@@ -70,6 +73,19 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 			case ' ':
 			case '|':
 			case '\0':
+				if(inSingleQuotes || inDoubleQuotes)
+				{
+					if(*p == '\0')
+					{
+						/* TODO: Error */
+					}
+					else
+					{
+						p++;
+						break;
+					}
+				}
+				
 				/* We're in a command, and just passed an argument. */
 				if(p - last > 0)
 				{
@@ -121,6 +137,12 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				break;
 			case '>':
 			case '<':
+				if(inSingleQuotes || inDoubleQuotes)
+				{
+					p++;
+					break;
+				}
+				
 				/* This is a redirection */
 				/* Create a redirection object */
 				rCurrent = safeMalloc(sizeof(struct redirection));
@@ -153,9 +175,8 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 					fileStart++;
 				/* Skip ahead to the next space    FIXME: or other special character */
 				/* FIXME: Must be able to quote/escape spaces here */
-				/* FIXME: May go out of bounds */
 				fileEnd = fileStart;
-				while(*fileEnd != ' ')
+				while(*fileEnd && *fileEnd != ' ')
 					fileEnd++;
 				rCurrent->filename = safeMalloc((fileEnd - fileStart + 1)*sizeof(char));
 				strncpy(rCurrent->filename, fileStart, fileEnd - fileStart);
@@ -192,10 +213,30 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				break;
 			case '"':
 			case '\'':
-				/* Quoted string */
-				break;
 			case '\\':
-				/* Backslash, skip next character and rewrite the backslash out of the string */
+				/* Backslash or quoted string */
+				if((inSingleQuotes && *p == '"') || (inDoubleQuotes && *p == '\''))
+				{
+					/* Mismatching quote inside quotes. Pass it through */
+					p++;
+					break;
+				}
+				/* Toggle quote state */
+				if(*p == '\'')
+					inSingleQuotes = !inSingleQuotes;
+				if(*p == '"')
+					inDoubleQuotes = !inDoubleQuotes;
+				wasBackslash = *p == '\\';
+				
+				/* Rewrite the quote or backslash out of the string by
+				 * moving all following characters back
+				 */
+				for(q = p; *q; q++)
+					*q = *(q + 1);
+				
+				/* If *p was a backslash, skip the next character */
+				if(wasBackslash)
+					p++;
 				break;
 			default:
 				p++;
