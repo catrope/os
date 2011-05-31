@@ -71,6 +71,29 @@ void pushArg(char *start, char *end, struct argument **head, struct argument **t
 	PUSH(argS, *head, *tail);
 }
 
+void pushFile(char *start, char *end, struct redirection *current, struct redirection **head, struct redirection **tail)
+{
+	current->filename = substring(start, end);
+	/* Check if file is an FD (of the form &123) */
+	if(current->filename[0] == '&' && isdigit(current->filename[1]))
+	{
+		current->tofd = atoi(&current->filename[1]);
+		if(current->tofd > 0 || current->filename[1] == '0')
+		{
+			/* We have a good FD */
+			free(current->filename);
+			current->filename = NULL;
+		}
+		else
+		{
+			/* TODO: error */
+		}
+	}
+	
+	/* Add the redirection to the list */
+	PUSH(current, *head, *tail);
+}
+
 /**
  * Parse a command line, recognizing pipes and I/O redirection, and segmenting
  * argument lists.
@@ -87,7 +110,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 	int fd;
 	
 	int done = 0, inSingleQuotes = 0, inDoubleQuotes = 0, inRedir = 0, wasBackslash;
-
+	
 	copy = safeMalloc((strlen(commandLine) + 1)*sizeof(char));
 	strcpy(copy, commandLine);
 	cCurrent = newCommand();
@@ -135,25 +158,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				else if(p - last > 0)
 				{
 					/* We have found a file name for our redirection */
-					rCurrent->filename = substring(last, p);
-					/* Check if file is an FD (of the form &123) */
-					if(rCurrent->filename[0] == '&' && isdigit(rCurrent->filename[1]))
-					{
-						rCurrent->tofd = atoi(&rCurrent->filename[1]);
-						if(rCurrent->tofd > 0 || rCurrent->filename[1] == '0')
-						{
-							/* We have a good FD */
-							free(rCurrent->filename);
-							rCurrent->filename = NULL;
-						}
-						else
-						{
-							/* TODO: error */
-						}
-					}
-					
-					/* Add the redirection to the list */
-					PUSH(rCurrent, rHead, rTail);
+					pushFile(last, p, rCurrent, &rHead, &rTail);
 					inRedir = 0;
 				}
 				
@@ -167,17 +172,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 					p++;
 					break;
 				}
-				if(inRedir)
-				{
-					/* TODO: Error. We're expecting a file */
-				}
-				
 				/* This is a redirection */
-				inRedir = 1;
-				
-				/* Push the argument we just passed, if any */
-				if(p - last > 0)
-					pushArg(last, p, &cCurrent->firstArg, &curTail);
 				
 				/* Create a redirection object */
 				rCurrent = safeMalloc(sizeof(struct redirection));
@@ -191,20 +186,49 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				else
 					rCurrent->mode = OUT;
 				
-				/* Look back for an FD number */
-				fdString = p - 1;
-				fd = 0;
-				while(fdString >= last && isdigit(*fdString))
+				/* Look back for an FD number.
+				 * The uneaten string before the < or > MUST be
+				 * a number and nothing else. This is because
+				 * foo 2>bar is different from foo2>bar .
+				 */
+				fdString = substring(last, p);
+				fd = atoi(fdString);
+				if((fd > 0 || fdString[0] == '0') && isdigit(fdString[0]))
 				{
-					fd = 10*fd + *fdString - '0';
-					fdString --;
+					/* We found an FD */
+					rCurrent->fromfd = fd;
+					/* Move last over the FD */
+					last = p;
 				}
-				/* Set the FD, using the found FD if found, or the default */
-				rCurrent->fromfd = fd > 0 ? fd : (rCurrent->mode == IN ? 0 : 1);
+				else
+					/* Use the default FD for the selected mode */
+					rCurrent->fromfd = rCurrent->mode == IN ? 0 : 1;
+				
+				/* If we passed an argument or file before, push it.
+				 * This is done at this stage so we can eat the FD first.
+				 */
+				if(inRedir) /* If we WERE in a redirection before */
+				{
+					/* Push the file we just passed, if any */
+					if(p - last > 0)
+						pushFile(last, p, rCurrent, &rHead, &rTail);
+					else
+					{
+						/* TODO: Error */
+					}
+				}
+				else
+				{
+					/* Push the argument we just passed, if any */
+					if(p - last > 0)
+						pushArg(last, p, &cCurrent->firstArg, &curTail);
+				}
+				
 				
 				/* Set p past the <, > or >> . We expect a file after this */
 				p += rCurrent->mode == OUTAPPEND ? 2 : 1;
 				last = p;
+				inRedir = 1;
 				break;
 			case '"':
 			case '\'':
