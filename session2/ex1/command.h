@@ -3,6 +3,9 @@
 
 enum redirMode { IN, OUT, OUTAPPEND };
 
+#define BACKGROUND 1
+#define PIPED 2
+
 struct redirection
 {
 	int fromfd; /* FD being redirected */
@@ -21,6 +24,7 @@ struct argument
 struct command
 {
 	struct argument *firstArg; /* Pointer to the head of the argument list, or NULL if this is a redirection */ 
+	int mode; /* Bitmap with BACKGROUND, PIPED or both or neither */
 	struct command *next;
 };
 

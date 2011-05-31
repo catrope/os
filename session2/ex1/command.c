@@ -21,6 +21,7 @@ static struct command *newCommand()
 {
 	struct command *c = safeMalloc(sizeof(struct command));
 	c->firstArg = NULL;
+	c->mode = 0;
 	c->next = NULL;
 	return c;
 }
@@ -74,7 +75,7 @@ static void pushFile(char *start, char *end, struct redirection *current, struct
 
 struct command *parseCommandLine(const char *commandLine, struct redirection **redirs)
 {
-	struct command *cHead = NULL, *cTail = NULL, *cCurrent;
+	struct command *cHead = NULL, *cTail = NULL, *cCurrent, *chainStart = NULL;
 	struct redirection *rHead = NULL, *rTail = NULL, *rCurrent = NULL;
 	struct argument *curTail = NULL;
 	char *copy, *p, *q, *last, *fdString;
@@ -92,6 +93,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 		{
 			case ' ':
 			case '|':
+			case '&':
 			case '\0':
 				if(inSingleQuotes || inDoubleQuotes)
 				{
@@ -112,12 +114,30 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 					if(p - last > 0)
 						pushArg(last, p, &cCurrent->firstArg, &curTail);
 					
-					if(*p == '|' || *p == '\0')
+					if(*p == '&')
+					{
+						/* Background the entire pipe chain */
+						if(!chainStart && cHead)
+						{
+							chainStart = cHead;
+							chainStart->mode |= BACKGROUND;
+							while(chainStart->next)
+							{
+								chainStart->mode |= BACKGROUND;
+								chainStart = chainStart->next;
+							}
+						}
+						cCurrent->mode |= BACKGROUND;
+					}
+					if(*p == '|')
+						cCurrent->mode |= PIPED;
+					
+					if(*p == '|' || *p == '&' || *p == '\0')
 						/* This is the end of the command */
 						/* Insert the previous command into the command list */
 						PUSH(cCurrent, cHead, cTail);
 					
-					if(*p == '|')
+					if(*p == '|' || *p == '&')
 					{
 						/* Create a new command */
 						cCurrent = newCommand();
@@ -126,14 +146,23 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 					if(*p == '\0')
 						done = 1;
 				}
-				else if(p - last > 0)
+				else
 				{
-					/* We have found a file name for our redirection */
-					pushFile(last, p, rCurrent, &rHead, &rTail);
-					inRedir = 0;
+					if(*p == '&')
+					{
+						/* Signals an FD; handled by pushFile(), leave it alone */
+						p++;
+						break;
+					}
+					if(p - last > 0)
+					{
+						/* We have found a file name for our redirection */
+						pushFile(last, p, rCurrent, &rHead, &rTail);
+						inRedir = 0;
+					}
 				}
 				
-				/* Skip the space or pipe character */
+				/* Skip the character */
 				last = ++p;
 				break;
 			case '>':
