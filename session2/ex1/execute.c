@@ -25,11 +25,11 @@ static void resolveRedirections(struct redirection *redirs)
 			flags = 0;
 			if(r->mode & READ)
 				flags |= O_RDONLY;
-			else /* Assume write */
+			else if(r->mode & WRITE)
 				flags |= O_WRONLY | O_CREAT;
 			if(r->mode & APPEND)
 				flags |= O_APPEND;
-			else
+			else if(r->mode & WRITE)
 				flags |= O_TRUNC;
 			
 			/* Open file */

@@ -132,6 +132,7 @@ struct command *parseCommandLine(const char *commandLine)
 						/* Create a new command */
 						cCurrent = newCommand();
 						curTail = NULL;
+						rTail = NULL;
 					}
 					if(*p == '\0')
 						done = 1;
