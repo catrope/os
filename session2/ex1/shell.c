@@ -98,14 +98,56 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 						break;
 					}
 				}
-				if(inRedir)
+				
+				if(!inRedir)
 				{
-					if(p - last == 0)
+					/* We're in a command, and just passed an argument. */
+					if(p - last > 0)
 					{
-						last = ++p;
-						break;
+						/* Extract the argument */
+						arg = substring(last, p);
+						/* Create a struct argument for it */
+						argS = safeMalloc(sizeof(struct argument));
+						argS->s = arg;
+						argS->next = NULL;
+						
+						/* Insert argS into the arg list, setting up the list if needed */
+						/* TODO: Generalize */
+						if(curTail)
+						{
+							curTail->next = argS;
+							curTail = argS;
+						}
+						else
+							cCurrent->firstarg = curTail = argS;
 					}
 					
+					if(*p == '|' || *p == '\0')
+					{
+						/* This is the end of the command */
+						/* Insert the previous command into the command list */
+						/* TODO: Generalize */
+						if(cTail)
+						{
+							cTail->next = cCurrent;
+							cTail = cCurrent;
+						}
+						else
+							/* Set up the list */
+							cHead = cTail = cCurrent;
+					}
+					if(*p == '|')
+					{
+						/* Create a new command */
+						cCurrent = newCommand();
+						curTail = NULL;
+					}
+					if(*p == '\0')
+						done = 1;
+				}
+				else if(p - last > 0)
+				{
+					/* We have found a file name for our redirection */
 					rCurrent->filename = substring(last, p);
 					/* Check if file is an FD (of the form &123) */
 					if(rCurrent->filename[0] == '&' && isdigit(rCurrent->filename[1]))
@@ -135,56 +177,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 						rHead = rTail = rCurrent;
 					
 					inRedir = 0;
-					/* Skip over */
-					last = ++p;
-					break;
-					/* TODO: Reorganize to share last = ++p; and such */
 				}
-				
-				/* We're in a command, and just passed an argument. */
-				if(p - last > 0)
-				{
-					/* Extract the argument */
-					arg = substring(last, p);
-					/* Create a struct argument for it */
-					argS = safeMalloc(sizeof(struct argument));
-					argS->s = arg;
-					argS->next = NULL;
-					
-					/* Insert argS into the arg list, setting up the list if needed */
-					/* TODO: Generalize */
-					if(curTail)
-					{
-						curTail->next = argS;
-						curTail = argS;
-					}
-					else
-						cCurrent->firstarg = curTail = argS;
-					
-				}
-				
-				if(*p == '|' || *p == '\0')
-				{
-					/* This is the end of the command */
-					/* Insert the previous command into the command list */
-					/* TODO: Generalize */
-					if(cTail)
-					{
-						cTail->next = cCurrent;
-						cTail = cCurrent;
-					}
-					else
-						/* Set up the list */
-						cHead = cTail = cCurrent;
-				}
-				if(*p == '|')
-				{
-					/* Create a new command */
-					cCurrent = newCommand();
-					curTail = NULL;
-				}
-				if(*p == '\0')
-					done = 1;
 				
 				/* Skip the space or pipe character */
 				last = ++p;
