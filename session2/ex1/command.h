@@ -25,6 +25,7 @@ struct command
 {
 	struct argument *firstArg; /* Pointer to the head of the argument list, or NULL if this is a redirection */ 
 	int mode; /* Bitmap with BACKGROUND, PIPED or both or neither */
+	pid_t pid;
 	struct command *next;
 };
 
