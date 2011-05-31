@@ -1,21 +1,10 @@
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 #include <ctype.h>
+#include "util.h"
 #include "command.h"
 
 #define PUSH(p, head, tail) do { if(tail) { (tail)->next = (p); (tail) = (p); } else (head) = (tail) = (p); } while(0)
-
-static void *safeMalloc(size_t s)
-{
-	void *r = malloc(s);
-	if(!r)
-	{
-		printf("Memory allocation failed. Tried to allocate %d bytes.\n", (int)s);
-		exit(EXIT_FAILURE);
-	}
-	return r;
-}
 
 static struct command *newCommand()
 {
