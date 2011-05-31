@@ -57,10 +57,10 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 	struct command *cHead = NULL, *cTail = NULL, *cCurrent;
 	struct redirection *rHead = NULL, *rTail = NULL, *rCurrent = NULL;
 	struct argument *argS, *curTail = NULL;
-	char *copy, *p, *q, *last, *fdString, *fileStart, *fileEnd, *arg;
+	char *copy, *p, *q, *last, *fdString, *arg;
 	int fd;
 	
-	int done = 0, inSingleQuotes = 0, inDoubleQuotes = 0, wasBackslash;
+	int done = 0, inSingleQuotes = 0, inDoubleQuotes = 0, inRedir = 0, wasBackslash;
 
 	copy = safeMalloc((strlen(commandLine) + 1)*sizeof(char));
 	strcpy(copy, commandLine);
@@ -85,11 +85,59 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 						break;
 					}
 				}
+				if(inRedir)
+				{
+					if(p - last == 0)
+					{
+						last = ++p;
+						break;
+					}
+					
+					/* Extract the file name */
+					/* TODO: Generalize */
+					rCurrent->filename = safeMalloc((p - last + 1)*sizeof(char));
+					strncpy(rCurrent->filename, last, p - last);
+					rCurrent->filename[p - last] = '\0';
+					
+					/* Check if file is an FD (of the form &123) */
+					if(rCurrent->filename[0] == '&' && isdigit(rCurrent->filename[1]))
+					{
+						rCurrent->tofd = atoi(&rCurrent->filename[1]);
+						if(rCurrent->tofd > 0 || rCurrent->filename[1] == '0')
+						{
+							/* We have a good FD */
+							free(rCurrent->filename);
+							rCurrent->filename = NULL;
+						}
+						else
+						{
+							/* TODO: error */
+						}
+					}
+					
+					/* Add the redirection to the list */
+					/* TODO: Generalize */
+					if(rTail)
+					{
+						rTail->next = rCurrent;
+						rTail = rCurrent;
+					}
+					else
+						/* Set up the list */
+						rHead = rTail = rCurrent;
+					
+					inRedir = 0;
+					/* Skip over */
+					last = ++p;
+					break;
+					/* TODO: Reorganize to share last = ++p; and such */
+				}
 				
 				/* We're in a command, and just passed an argument. */
 				if(p - last > 0)
 				{
 					/* Extract the argument */
+					/* TODO: Generalize */
 					arg = safeMalloc((p - last + 1)*sizeof(char));
 					strncpy(arg, last, p - last);
 					arg[p - last] = '\0';
@@ -100,6 +148,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 					argS->next = NULL;
 					
 					/* Insert argS into the arg list, setting up the list if needed */
+					/* TODO: Generalize */
 					if(curTail)
 					{
 						curTail->next = argS;
@@ -114,6 +163,7 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				{
 					/* This is the end of the command */
 					/* Insert the previous command into the command list */
+					/* TODO: Generalize */
 					if(cTail)
 					{
 						cTail->next = cCurrent;
@@ -137,13 +187,19 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				break;
 			case '>':
 			case '<':
+				/* Need to clean up previous arg here too. Bleeeehhhh. Will fix after reorg */
 				if(inSingleQuotes || inDoubleQuotes)
 				{
 					p++;
 					break;
 				}
+				if(inRedir)
+				{
+					/* TODO: Error. We're expecting a file */
+				}
 				
 				/* This is a redirection */
+				inRedir = 1;
 				/* Create a redirection object */
 				rCurrent = safeMalloc(sizeof(struct redirection));
 				rCurrent->next = NULL;
@@ -167,49 +223,9 @@ struct command *parseCommandLine(const char *commandLine, struct redirection **r
 				/* Set the FD, using the found FD if found, or the default */
 				rCurrent->fromfd = fd > 0 ? fd : (rCurrent->mode == IN ? 0 : 1);
 				
-				/* Look for a file */
-				/* Set file past the <, > or >> */
-				fileStart = p + (rCurrent->mode == OUTAPPEND ? 2 : 1);
-				/* Skip spaces */
-				while(*fileStart == ' ')
-					fileStart++;
-				/* Skip ahead to the next space    FIXME: or other special character */
-				/* FIXME: Must be able to quote/escape spaces here */
-				fileEnd = fileStart;
-				while(*fileEnd && *fileEnd != ' ')
-					fileEnd++;
-				rCurrent->filename = safeMalloc((fileEnd - fileStart + 1)*sizeof(char));
-				strncpy(rCurrent->filename, fileStart, fileEnd - fileStart);
-				rCurrent->filename[fileEnd - fileStart] = '\0';
-				
-				/* Check if file is an FD (of the form &123) */
-				if(rCurrent->filename[0] == '&' && isdigit(rCurrent->filename[1]))
-				{
-					rCurrent->tofd = atoi(&rCurrent->filename[1]);
-					if(rCurrent->tofd > 0 || rCurrent->filename[1] == '0')
-					{
-						/* We have a good FD */
-						free(rCurrent->filename);
-						rCurrent->filename = NULL;
-					}
-					else
-					{
-						/* TODO: error */
-					}
-				}
-				
-				/* Add the redirection to the list */
-				if(rTail)
-				{
-					rTail->next = rCurrent;
-					rTail = rCurrent;
-				}
-				else
-					/* Set up the list */
-					rHead = rTail = rCurrent;
-				
-				/* Skip over what we parsed */
-				p = last = fileEnd;
+				/* Set p past the <, > or >> . We expect a file after this */
+				p += rCurrent->mode == OUTAPPEND ? 2 : 1;
+				last = p;
 				break;
 			case '"':
 			case '\'':
