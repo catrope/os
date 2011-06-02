@@ -42,4 +42,19 @@ struct command
  */
 extern struct command *parseCommandLine(const char *commandLine);
 
+/**
+ * Recursively free a list of argument structures
+ */
+extern void freeArgumentList(struct argument *head);
+
+/**
+ * Recursively free a list of redirection structures
+ */
+extern void freeRedirectionList(struct redirection *head);
+
+/**
+ * Recursively free a list of command structures
+ */
+extern void freeCommandList(struct command *head);
+
 #endif /* COMMAND_H */

@@ -6,6 +6,35 @@
 
 #define PUSH(p, head, tail) do { if(tail) { (tail)->next = (p); (tail) = (p); } else (head) = (tail) = (p); } while(0)
 
+void freeArgumentList(struct argument *head)
+{
+	if(head->next)
+		freeArgumentList(head->next);
+	if(head->s)
+		free(head->s);
+	free(head);
+}
+
+void freeRedirectionList(struct redirection *head)
+{
+	if(head->next)
+		freeRedirectionList(head->next);
+	if(head->filename)
+		free(head->filename);
+	free(head);
+}
+
+void freeCommandList(struct command *head)
+{
+	if(head->next)
+		freeCommandList(head->next);
+	if(head->firstArg)
+		freeArgumentList(head->firstArg);
+	if(head->redir)
+		freeRedirectionList(head->redir);
+	free(head);
+}
+
 static struct command *newCommand()
 {
 	struct command *c = safeMalloc(sizeof(struct command));

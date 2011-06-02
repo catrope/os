@@ -13,5 +13,6 @@ int main(int argc, char **argv)
 	}
 	c = parseCommandLine(argv[1]);
 	executeCommand(c);
+	freeCommandList(c);
 	return EXIT_SUCCESS;
 }
