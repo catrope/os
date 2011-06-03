@@ -57,4 +57,10 @@ extern void freeRedirectionList(struct redirection *head);
  */
 extern void freeCommandList(struct command *head);
 
+/**
+ * Free one command structure and its members, but don't free the the rest
+ * of the list
+ */
+extern void freeCommand(struct command *cmd);
+
 #endif /* COMMAND_H */

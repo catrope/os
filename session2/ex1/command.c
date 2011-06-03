@@ -24,15 +24,25 @@ void freeRedirectionList(struct redirection *head)
 	free(head);
 }
 
-void freeCommandList(struct command *head)
+static void freeCommand_internal(struct command *head, int recursive)
 {
-	if(head->next)
-		freeCommandList(head->next);
+	if(head->next && recursive)
+		freeCommand_internal(head->next, recursive);
 	if(head->firstArg)
 		freeArgumentList(head->firstArg);
 	if(head->redir)
 		freeRedirectionList(head->redir);
 	free(head);
+}
+
+void freeCommandList(struct command *head)
+{
+	freeCommand_internal(head, 1);
+}
+
+void freeCommand(struct command *cmd)
+{
+	freeCommand_internal(cmd, 0);
 }
 
 static struct command *newCommand()
