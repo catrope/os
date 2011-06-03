@@ -3,8 +3,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <signal.h>
 #include "command.h"
 #include "execute.h"
+
+struct command *currentCommand;
 
 void showPrompt()
 {
@@ -33,6 +37,21 @@ void doCD(struct command *c)
 	
 }
 
+void child(int sig, siginfo_t *info, void *context)
+{
+	int status;
+	waitpid(info->si_pid, &status, 0);
+}
+
+void setupSignalHandlers()
+{
+	struct sigaction sigchld;
+	sigchld.sa_sigaction = child;
+	sigemptyset(&sigchld.sa_mask);
+	sigchld.sa_flags = SA_SIGINFO | SA_RESTART;
+	sigaction(SIGCHLD, &sigchld, NULL);	
+}
+
 /* TODO: sigchild handler for backgrounding */
 /* TODO: Ctrl+C handling */
 
@@ -40,6 +59,8 @@ int main(int argc, char **argv)
 {
 	struct command *c;
 	char comm[8192];
+	
+	setupSignalHandlers();
 	
 	while(1)
 	{
