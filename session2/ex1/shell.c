@@ -12,15 +12,16 @@ void showPrompt()
 	fflush(stdout);
 }
 
-void readCommand(char *buf, size_t size)
+int readCommand(char *buf, size_t size)
 {
-	int len;
-	fgets(buf, size, stdin);
+	int len, retval;
+	retval = fgets(buf, size, stdin) ? 1 : 0;
 	len = strlen(buf);
 	
 	/* Trim the trailing newline, if present */
 	if(buf[len - 1] == '\n')
 		buf[len - 1] = '\0';
+	return retval;
 }
 
 /* TODO: sigchild handler for backgrounding */
@@ -34,12 +35,14 @@ int main(int argc, char **argv)
 	while(1)
 	{
 		showPrompt();
-		readCommand(comm, 8192);
+		if(!readCommand(comm, 8192))
+			break;
 		c = parseCommandLine(comm);
 		executeCommand(c);
 		/* TODO: Implement backgrounding */
 		waitForChildren(c);
 		freeCommandList(c);
 	}
+	puts("\nBye");
 	return EXIT_SUCCESS;
 }
