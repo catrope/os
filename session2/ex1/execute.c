@@ -201,6 +201,9 @@ void executeCommand(struct command *c)
 		}
 		first = 0;
 	}
+	
+	/* Close pipes in the parent */
+	closeOtherPipes(c, NULL);
 }
 
 void waitForChildren(struct command *c)
