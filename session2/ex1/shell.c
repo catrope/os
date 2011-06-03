@@ -24,6 +24,15 @@ int readCommand(char *buf, size_t size)
 	return retval;
 }
 
+void doCD(struct command *c)
+{
+	char *dir;
+	dir = c->firstArg->next && c->firstArg->next->s ? c->firstArg->next->s : getenv("HOME");
+	if(chdir(dir) < 0)
+		perror(dir);
+	
+}
+
 /* TODO: sigchild handler for backgrounding */
 /* TODO: Ctrl+C handling */
 
@@ -36,13 +45,33 @@ int main(int argc, char **argv)
 	{
 		showPrompt();
 		if(!readCommand(comm, 8192))
+		{
+			putchar('\n');
 			break;
+		}
+		
+		if(strlen(comm) == 0)
+			continue;
 		c = parseCommandLine(comm);
+		
+		/* Special commands */
+		if(c->firstArg && c->firstArg->s)
+		{
+			/* Special commands */
+			if(!strcmp(c->firstArg->s, "exit"))
+				break;
+			if(!strcmp(c->firstArg->s, "cd"))
+			{
+				doCD(c);
+				continue;
+			}
+		}
+		
+		
 		executeCommand(c);
 		/* TODO: Implement backgrounding */
 		waitForChildren(c);
 		freeCommandList(c);
 	}
-	puts("\nBye");
 	return EXIT_SUCCESS;
 }
