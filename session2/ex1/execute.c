@@ -202,3 +202,11 @@ void executeCommand(struct command *c)
 		first = 0;
 	}
 }
+
+void waitForChildren(struct command *c)
+{
+	struct command *p;
+	int status;
+	for(p = c; p; p = p->next)
+		waitpid(p->pid, &status, 0);
+}
