@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "util.h"
 #include "execute.h"
 
@@ -211,5 +212,5 @@ void waitForChildren(struct command *c)
 	struct command *p;
 	int status;
 	for(p = c; p; p = p->next)
-		waitpid(p->pid, &status, 0);
+		while(waitpid(p->pid, &status, 0) < 0 && errno == EINTR);
 }
