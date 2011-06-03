@@ -66,7 +66,7 @@ static void setupRedirections(struct redirection *redirs)
 }
 
 /**
- * Close pipes used for other commands
+ * Close pipes and files used for other commands
  * @param cmds Linked list of commands
  * @param current Current command. Will be skipped
  */
@@ -79,7 +79,7 @@ static void closeOtherPipes(struct command *cmds, struct command *current)
 		if(c == current)
 			continue;
 		for(r = c->redir; r; r = r->next)
-			if(r->mode & PIPE)
+			if(r->mode & PIPE || r->filename)
 				close(r->tofd);
 	}
 }
@@ -212,5 +212,7 @@ void waitForChildren(struct command *c)
 	struct command *p;
 	int status;
 	for(p = c; p; p = p->next)
-		while(waitpid(p->pid, &status, 0) < 0 && errno == EINTR);
+		if(!(p->mode & BACKGROUND))
+			/* Retry if we get EINTR */
+			while(waitpid(p->pid, &status, 0) < 0 && errno == EINTR);
 }

@@ -52,9 +52,6 @@ void setupSignalHandlers()
 	sigaction(SIGCHLD, &sigchld, NULL);	
 }
 
-/* TODO: sigchild handler for backgrounding */
-/* TODO: Ctrl+C handling */
-
 int main(int argc, char **argv)
 {
 	struct command *c;
@@ -71,8 +68,6 @@ int main(int argc, char **argv)
 			break;
 		}
 		
-		if(strlen(comm) == 0)
-			continue;
 		c = parseCommandLine(comm);
 		
 		/* Special commands */
@@ -90,7 +85,6 @@ int main(int argc, char **argv)
 		
 		
 		executeCommand(c);
-		/* TODO: Implement backgrounding */
 		waitForChildren(c);
 		freeCommandList(c);
 	}

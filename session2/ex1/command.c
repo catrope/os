@@ -163,8 +163,9 @@ struct command *parseCommandLine(const char *commandLine)
 					
 					if(*p == '|' || *p == '&' || *p == '\0')
 						/* This is the end of the command */
-						/* Insert the previous command into the command list */
-						PUSH(cCurrent, cHead, cTail);
+						/* Insert the previous command into the command list if non-empty */
+						if(cCurrent->firstArg)
+							PUSH(cCurrent, cHead, cTail);
 					
 					if(*p == '|' || *p == '&')
 					{
