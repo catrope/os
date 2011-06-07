@@ -1,0 +1,146 @@
+\documentclass[11pt]{article}
+
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily, tabsize=4, columns=flexible, breaklines=true, stepnumber=1, numberstyle=\tiny, numbersep=6pt, xleftmargin=1.8em}
+\usepackage[dutch]{babel}
+\usepackage{parskip}
+
+
+\begin{document}
+
+\author{Roan Kattouw and Jan Paul Posma}
+\date{\today}
+\title{Operating Systems practicum 2}
+
+\maketitle
+
+\section*{iwish}
+
+\section*{UTCtime}
+Allereerst hebben we de system call gemaakt en daarna de library call.
+
+
+% LET OP: de Makefile bestanden zelf (niet Makefile.in) en /usr/src/lib/posix/Makefile.in missen nog.. Moet ik
+% nog op het practicumsysteem ophalen, en dit wil niet via SSH.. :(
+\subsection*{System call}
+De system call hebben we bij de andere time functies gezet in \verb+/usr/src/servers/pm/time.c+.
+Aangezien het na\"ief is om te denken dat we simpelweg alle oude leap-seconden van het huidige
+aantal kunnen aftrekken, kijken we daadwerkelijk naar de exacte tijd. Het is namelijk ook mogelijk
+dat er bijvoorbeeld een oude gebeurtenis wordt nagebootst in een Virtual Machine, met de klok
+dus teruggezet. In veruit de meeste gevallen zal echter simpelweg het getal 24 (aantal leap-seconden tot
+nu toe) moeten worden afgetrokken. Daarom controleren we eerst of we dit kunnen doen; dat is sneller.
+
+\begin{verbatim}
+	#define LEAP(x) if(rt>=x) { rt--; }
+
+	PUBLIC int do_utctime()
+	{
+	  clock_t uptime, boottime;
+	  time_t rt;
+	  int s;
+	
+	  if ( (s=getuptime2(&uptime, &boottime)) != OK)
+			panic(__FILE__, "do_utctime couldn't get uptime", s);
+	
+	  rt = (time_t) (boottime + (uptime/system_hz));
+	  mp->mp_reply.reply_utime = (uptime%system_hz)*1000000/system_hz;
+	  
+	/* Correct for leap seconds.
+	 */
+	  LEAP(78796800); LEAP(94694400); LEAP(126230400); LEAP(157766400); LEAP(189302400);
+	  LEAP(220924800); LEAP(252460800); LEAP(283996800); LEAP(315532800); LEAP(362793600); 
+	  LEAP(394329600); LEAP(425865600); LEAP(489024000); LEAP(567993600); LEAP(631152000); 
+	  LEAP(662688000); LEAP(709948800); LEAP(741484800); LEAP(773020800); LEAP(820454400); 
+	  LEAP(867715200); LEAP(915148800); LEAP(1136073600); LEAP(1230768000);
+	  
+	  mp->mp_reply.reply_time = rt;
+	  
+	  return(OK);
+	}
+\end{verbatim}
+
+Verder moesten nog enkele bestanden worden aangepast. In \verb+/usr/src/servers/pm/proto.h+ hebben
+we het functieprototype toegevoegd:
+
+\begin{verbatim}
+_PROTOTYPE( int do_utctime, (void) );
+\end{verbatim}
+
+Verder hebben we voor de unused positie 69 gekozen voor onze system call. In \verb+/usr/src/include/minix/callnr.h+
+zorgt dit voor:
+
+\begin{verbatim}
+#define UTCTIME 69
+\end{verbatim}
+
+Daarnaast hebben we in \verb+/usr/src/servers/pm/table.c+ op positie 69 \verb+no_sys+ vervangen
+door \verb+do_utctime+.
+
+\subsection*{Library call}
+
+Het maken van een library call is relatief eenvoudig. We zijn wel in twee valkuilen gelopen. Ten eerste
+moet er ook een \verb+utctime.s+ bestand worden aangemaakt, wat niet overal vermeld wordt. Daarnaast
+werkt het ook niet wanneer het testprogramma gecompileerd wordt met \verb+gcc+ in plaats van \verb+cc+.
+
+Allereerst hebben we in \verb+/usr/src/lib/posix/_utctime.c+ een wrapper gemaakt, afgekeken van de
+\verb+time+ system call:
+
+\begin{verbatim}
+#include <lib.h>
+#define time _time
+#include <time.h>
+
+PUBLIC time_t utctime(tp)
+time_t *tp;
+{
+  message m;
+  if (_syscall(MM, UTCTIME, &m) < 0) return( (time_t) -1);
+  if (tp != (time_t *) 0) *tp = m.m2_l1;
+  return(m.m2_l1);
+}
+\end{verbatim}
+
+Hierbij moest ook \verb+_utctime.c+ in \verb+/usr/src/lib/posix/Makefile.in+ worden toegevoegd.
+De functiedefinitie hebben we in \verb+/usr/src/include/time.h+ geplaatst:
+
+\begin{verbatim}
+_PROTOTYPE( time_t utctime, (time_t *_timeptr) );
+\end{verbatim}
+
+Tenslotte moest de eerdergenoemde \verb+utctime.s+ worden aangemaakt, namelijk op
+\verb+/usr/src/lib/syscall/utctime.s+:
+
+\begin{verbatim}
+.sect .text
+.extern __utctime
+.define _utctime
+.align 2
+
+_utctime:
+	jmp __utctime
+\end{verbatim}
+
+Natuurlijk moest ook \verb+utctime.s+ worden toegevoegd aan \verb+/usr/src/lib/syscall/Makefile.in+.
+
+Ten slotte een eenvoudig test-programma, \verb+test.c+:
+
+\begin{verbatim}
+#include<time.h>
+#include<stdio.h>
+
+int main()
+{
+  printf("time    = %u\n", time(0));
+  printf("utctime = %u\n", utctime(0));
+  return 0;
+}
+\end{verbatim}
+
+Dit laat inderdaad de gewenste uitvoer zien:
+
+\begin{verbatim}
+time    = 1307460054
+utctime = 1307460030
+\end{verbatim}
+
+\end{document}
