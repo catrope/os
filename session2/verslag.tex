@@ -15,6 +15,101 @@
 \maketitle
 
 \section*{iwish}
+iwish heet in onze inzending simpelweg \verb+shell+.
+
+\subsection*{Extra features}
+Onze shell heeft de volgende features die niet in de opdracht vermeld staan:
+\begin{itemize}
+\item Een prompt die aangeeft of de gebruiker \verb+root+ is (\verb+#+) of niet (\verb+$+)
+\item De speciale commando's \verb+cd+ en \verb+exit+ worden ondersteund. Ctrl+D bij een lege invoer be\"eindigt de shell ook
+\item I/O redirection ondersteunt append mode (\verb+command >> file+)
+\item I/O redirection van en naar willekeurige file descriptors (\verb+3< file+, \verb+2> file+, \verb+2>> file+ en \verb+2> &1+)
+\item Verkorte syntax voor I/O redirection (\verb+command<infile>outfile+), met correct onderscheid tussen \verb+foo2>bar+ en \verb+foo 2>bar+
+\item Gebruik van backslashes om karakters met een speciale betekenis te escapen, bijv. in bestandsnamen (\verb+cat foo\ \&\ bar+)
+\item Gebruik van single of double quotes voor hetzelfde doel (\verb+cat 'foo & bar'+)
+\item Bash-compatible gedrag voor \verb+foo | bar & baz+ (\verb+foo+ en \verb+bar+ in de achtergrond, \verb+baz+ in de voorgrond)
+\end{itemize}
+
+\subsection*{Commando parsing}
+De input van de gebruiker wordt eerst geparset en omgezet naar een datastructuur met linked lists die
+de verschillende commando's, hun argumenten en I/O redirections representeren. Dit gebeurt in \verb+parseCommandLine()+
+in \verb+command.c+. We hebben ervoor gekozen om linked lists te gebruiken omdat dit gemakkelijker was dan te werken
+met arrays van van te voren ombekende grootte.
+
+\begin{verbatim}
+#define READ 1
+#define WRITE 2
+#define APPEND 4
+#define PIPE 8
+
+#define BACKGROUND 1
+#define PIPED 2
+
+struct redirection
+{
+        /* FD being redirected */
+        int fromfd;
+        /* Filename to redirect to, or NULL if redirecting to an FD */
+        char *filename;
+        /* FD to redirect to. Only used if filename is NULL */
+        int tofd;
+        /* Bitmap of READ, WRITE, APPEND, PIPE */
+        int mode;
+        struct redirection *next;
+};
+
+struct argument
+{
+        char *s;
+        struct argument *next;
+};
+
+struct command
+{
+        /* Pointer to the head of the argument list */
+        struct argument *firstArg;
+        /* Pointer to the head of the redirection list or NULL */
+        struct redirection *redir;
+        /* Bitmap of BACKGROUND, PIPED */
+        int mode;
+        /* PID once started */
+        pid_t pid;
+        struct command *next;
+};
+\end{verbatim}
+
+Elk commando bestaat uit een lijst argumenten, gerepresenteerd door een linked list van \verb+struct argument+s.
+Het eerste argument is de naam van het programma. Commando's worden gescheiden door \verb+|+ of \verb+&+. Er
+kunnen dus meerdere commando's op \'e\'en command line voorkomen. De code voor het parsen van command lines en
+het bouwen van deze datastructuren bevindt zich in \verb+command.c+.
+
+\subsection*{Commando's uitvoeren}
+Als een command line eenmaal is omgezet in een linked list van commando datastructuren, kunnen we deze uitvoeren.
+De code hiervoor bevindt zich in \verb+execute.c+, met als hoofdfunctie \verb+executeCommand()+. De volgende stappen
+worden uitgevoerd:
+\begin{itemize}
+\item Redirections naar bestanden worden omgezet naar redirections naar file descriptors door het bestand te openen en de verkregen file descriptor in het \verb+tofd+ veld te zetten
+\item Pipes worden toegevoegd als redirections van \verb+stdin+ of \verb+stdout+ naar de betreffende file descriptor
+\item Voor elk commando wordt een nieuw proces gemaakt. Het PID hiervan wordt opgeslagen in het \verb+pid+ veld van \verb+struct command+
+\item Elk kindproces
+	\begin{itemize}
+	\item Zet zijn I/O redirections op. Pipes vallen hier ook onder dankzij de preprocessing hierboven
+	\item Sluit de files en pipes die waren geopend voor andere kinderen
+	\item Zet de linked list van argumenten om in een array en roept \verb+execvp()+ aan. Deze functie zorgt automatisch voor \verb+$PATH+ resolution en het doorgeven van omgevingsvariabelen (de \verb+env+ parameter van \verb+execve()+)
+	\end{itemize}
+\item De ouder sluit alle files en pipes die het geopend heeft voor I/O redirection
+\item De ouder roept \verb+waitpid()+ aan op elk kindproces dat niet de \verb+BACKGROUND+ flag heeft
+\end{itemize}
+
+\subsection*{Achtergrondprocessen opruimen met SIGCHLD}
+De shell wacht niet op kinderen die in de achtergrond draaien, maar gaat direct verder. Als die kinderen
+op een gegeven moment termineren, moeten ze toch worden opgeruimd door de shell, anders worden ze
+zombies. Een manier om dit te doen is om elke keer dat de prompt in beeld wordt gebracht na het uitvoeren van
+een commando een non-blocking wait (met de \verb+WNOHANG+ flag) te doen op PID -1 totdat dit \verb+ECHILD+ geeft.
+Wij hebben ervoor gekozen om het \verb+SIGCHLD+ signaal af te vangen en in de handler een wait te doen
+op het getermineerde kind. Het PID van het kind staat in de \verb+siginfo_t+ structure die
+als de tweede parameter aan de signal handler wordt meegegeven als de signal handler ge\"installeerd
+is met de \verb+SA_SIGINFO+ flag.
 
 \section*{UTCtime}
 Allereerst hebben we de system call gemaakt en daarna de library call.
