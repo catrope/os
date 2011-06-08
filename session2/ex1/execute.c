@@ -68,7 +68,7 @@ static void setupRedirections(struct redirection *redirs)
 /**
  * Close pipes and files used for other commands
  * @param cmds Linked list of commands
- * @param current Current command. Will be skipped
+ * @param current Current command. Will be skipped. If NULL, no commands are skipped
  */
 static void closeOtherPipes(struct command *cmds, struct command *current)
 {
