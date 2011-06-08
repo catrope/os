@@ -42,13 +42,24 @@ nu toe) moeten worden afgetrokken. Daarom controleren we eerst of we dit kunnen 
 	  rt = (time_t) (boottime + (uptime/system_hz));
 	  mp->mp_reply.reply_utime = (uptime%system_hz)*1000000/system_hz;
 	  
-	/* Correct for leap seconds.
-	 */
-	  LEAP(78796800); LEAP(94694400); LEAP(126230400); LEAP(157766400); LEAP(189302400);
-	  LEAP(220924800); LEAP(252460800); LEAP(283996800); LEAP(315532800); LEAP(362793600); 
-	  LEAP(394329600); LEAP(425865600); LEAP(489024000); LEAP(567993600); LEAP(631152000); 
-	  LEAP(662688000); LEAP(709948800); LEAP(741484800); LEAP(773020800); LEAP(820454400); 
-	  LEAP(867715200); LEAP(915148800); LEAP(1136073600); LEAP(1230768000);
+	  /* Correct for leap seconds.
+	   */
+	  if ( rt >= 1230768023 )
+	  {
+	  /* This will be used in practically all cases.
+	   */
+	    rt -= 24;
+	  }
+	  else
+	  {
+	  /* If for some reason the clock is behind, do the correction right.
+	   */
+	    LEAP(78796800); LEAP(94694400); LEAP(126230400); LEAP(157766400); LEAP(189302400);
+	    LEAP(220924800); LEAP(252460800); LEAP(283996800); LEAP(315532800); LEAP(362793600); 
+	    LEAP(394329600); LEAP(425865600); LEAP(489024000); LEAP(567993600); LEAP(631152000); 
+	    LEAP(662688000); LEAP(709948800); LEAP(741484800); LEAP(773020800); LEAP(820454400); 
+	    LEAP(867715200); LEAP(915148800); LEAP(1136073600); LEAP(1230768000);
+	  }
 	  
 	  mp->mp_reply.reply_time = rt;
 	  
