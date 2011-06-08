@@ -29,7 +29,7 @@ struct command
 {
 	struct argument *firstArg; /* Pointer to the head of the argument list */
 	struct redirection *redir; /* Pointer to the head of the redirection list or NULL if no redirections */
-	int mode; /* Bitmap with BACKGROUND, PIPED or both or neither */
+	int mode; /* Bitmap of BACKGROUND, PIPED */
 	pid_t pid; /* PID once started */
 	struct command *next;
 };
