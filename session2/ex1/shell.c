@@ -40,7 +40,8 @@ void doCD(struct command *c)
 void child(int sig, siginfo_t *info, void *context)
 {
 	int status;
-	waitpid(info->si_pid, &status, 0);
+	/* WNOHANG for paranoia: potentially blocking operations in signal handlers are scary */
+	waitpid(info->si_pid, &status, WNOHANG);
 }
 
 void setupSignalHandlers()
@@ -49,7 +50,7 @@ void setupSignalHandlers()
 	sigchld.sa_sigaction = child;
 	sigemptyset(&sigchld.sa_mask);
 	sigchld.sa_flags = SA_SIGINFO | SA_RESTART;
-	sigaction(SIGCHLD, &sigchld, NULL);	
+	sigaction(SIGCHLD, &sigchld, NULL);
 }
 
 int main(int argc, char **argv)
