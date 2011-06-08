@@ -92,10 +92,8 @@ static void pushFile(char *start, char *end, struct redirection *current, struct
 			free(current->filename);
 			current->filename = NULL;
 		}
-		else
-		{
-			/* TODO: error */
-		}
+		/* We could throw an error if we didn't find a good FD, but that's not necessary.
+		 * We'll fall through to interpreting the bad FD as a file name instead. */
 	}
 	
 	/* Add the redirection to the list */
@@ -124,17 +122,16 @@ struct command *parseCommandLine(const char *commandLine)
 			case '|':
 			case '&':
 			case '\0':
-				if(inSingleQuotes || inDoubleQuotes)
+				/* *p != '\0' check is needed so we don't try to increment p
+				 * past the end. In the *p == '\0' case we have an unbalanced
+				 * quote. We could throw an error in that case, but we'll just
+				 * ignore it instead: this will automatically handle it gracefully
+				 * by effectively pretending there is a closing quote at the end.
+				 */
+				if((inSingleQuotes || inDoubleQuotes) && *p != '\0')
 				{
-					if(*p == '\0')
-					{
-						/* TODO: Error */
-					}
-					else
-					{
 						p++;
 						break;
-					}
 				}
 				
 				if(!inRedir)
@@ -243,10 +240,11 @@ struct command *parseCommandLine(const char *commandLine)
 					/* Push the file we just passed, if any */
 					if(p - last > 0)
 						pushFile(last, p, rCurrent, &cCurrent->redir, &rTail);
-					else
-					{
-						/* TODO: Error */
-					}
+					/* If p - last == 0, we have something like foo > > bar.
+					 * Technically that's wrong and we could throw an error, but
+					 * we can easily handle it gracefully by doing nothing, which
+					 * will effectively ignore all redirection tokens but the last one.
+					 */
 				}
 				else
 				{
