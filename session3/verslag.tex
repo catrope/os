@@ -1,0 +1,39 @@
+\documentclass[11pt]{article}
+
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily, tabsize=4, columns=flexible, breaklines=true, stepnumber=1, numberstyle=\tiny, numbersep=6pt, xleftmargin=1.8em}
+\usepackage[dutch]{babel}
+\usepackage{parskip}
+
+
+\begin{document}
+
+\author{Roan Kattouw and Jan Paul Posma}
+\date{\today}
+\title{Operating Systems practicum 2}
+
+\maketitle
+
+\section*{Opgave 1}
+Op regel 7 wordt \verb+PAGESIZE+ gedefini\"eerd als de grootte van een page in het doel-OS.
+Voor Linux op een x32 is dat 4096 bytes. Op regels 11-14 wordt een functie gedefini\"eerd die
+\verb+"Memory was protected"+ print en het eerder beschermde geheugenblok vrijgeeft. Deze functie
+wordt door regel 20 als signal handler voor het \verb+SIGSEGV+ signaal eg\"installeerd.
+
+Het programma alloceert eerst een blok geheugen dat aligned is op een veelvoud van \verb+PAGESIZE+;
+dit gebeurt op regel 25. Regels 31 en 32 schrijven nu naar dat blok geheugen; dit gaat goed
+omdat het geheugen niet beschermd is. Regel 35 beschermt nu het blok en maakt het read-only.
+Regel 40 leest een getal uit het blok; dit mag, want het blok is alleen tegen schrijven
+beschermd, dus dit drukt \verb+val = 42+ af.
+
+Regel 42 probeert nu het getal 84 in \verb+arr[666]+ te zetten. Dit mag niet, want het blok
+is beschermd tegen schrijven, dus er wordt een \verb+SIGSEGV+ signaal verzonden. Dit signaal
+wordt afgevangen en de handler op regels 11-14 wordt aangeroepen. Deze drukt \verb+"Memory was protected"+
+af en maakt het geheugen schrijfbaar. Nu de handler klaar is, wordt regel 42 opnieuw uitgevoerd.
+De tweede keer slaagt de schrijfactie wel, omdat de handler de bescherming heeft weggehaald.
+Regel 44 print nu \verb+val = 84+.
+
+\section*{Opgave 2}
+
+
+\end{document}
