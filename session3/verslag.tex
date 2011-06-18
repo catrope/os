@@ -34,6 +34,43 @@ De tweede keer slaagt de schrijfactie wel, omdat de handler de bescherming heeft
 Regel 44 print nu \verb+val = 84+.
 
 \section*{Opgave 2}
+Onze shared pages implementatie gebruikt twee pipes om pages heen en weer te sturen, en
+\verb+SIGUSR1+ om te signaleren dat het andere proces de page wil hebben. De processen
+doen ping-pong met busy waiting. De \verb+turn+ variabele is een \verb+int+ die de eerste
+4 bytes van de page in beslag neemt.
 
+\subsection*{Initialisatie}
+\begin{itemize}
+\item Er wordt een buffer van \'e\'en page (4096 bytes), aligned op een meervoud van 4096 bytes, gealloceerd
+\item Er worden handlers ge\"installeerd voor \verb+SIGSEGV+ en \verb+SIGUSR1+
+\item Er worden twee pipes geopend
+\item \verb+fork()+ wordt aangeroepen
+\item Beide processen sluiten de uiteinden van de pipes die ze niet gebruiken
+\item Het kindproces beschermt zijn page tegen lezen en schrijven, het ouderproces staat beide toe
+\end{itemize}
+
+\subsection*{Lezen/schrijven naar de gedeelde page}
+Op elk moment is slechts \'e\'en proces de 'eigenaar' van de page. In dit proces is toegang
+tot de page niet beschermd door \verb+mprotect()+, in het andere proces wel. Als het proces
+dat niet de eigenaar is, probeert te lezen uit of schrijven naar de gedeelde page, dan gebeurt
+er het volgende:
+\begin{itemize}
+\item Doordat de page beschermd is tegen lezen en schrijven, wordt er een \verb+SIGSEGV+ signaal verzonden
+\item De functie \verb+segvHandler()+ vangt dit signaal af
+\item De handler controleert dat het adres waarvoor de \verb+SIGSEGV+ verzonden is. Deze informatie staat in de \verb+siginfo_t+ datastructuur die meegegeven wordt omdat de handler is ge\"installeerd met de \verb+SA_SIGINFO+ flag
+\item Als de segfault van buiten de page komt, wordt de standaardactie voor \verb+SIGSEGV+ hersteld. Dit leidt ertoe dat het proces sterft met een segmentation fault
+\item De segfault komt van binnen de page, dus de page moet worden overgedragen vanuit het andere proces. Er wordt een \verb+SIGUSR1+ signaal naar het andere proces gestuurd om aan te geven dat de page van eigenaar moet wisselen
+\item Het andere proces ontvangt het \verb+SIGUSR1+ signaal, schrijft de inhoud van de page naar de pipe, en beschermt de page tegen lezen en schrijven
+\item Het ontvangende proces haalt de bescherming van de page weg, en leest de inhoud van de page in van de pipe
+\item De handler eindigt. De instructie die de segfault veroorzaakte, wordt herstart, en slaagt nu wel omdat de page niet meer beschermd is
+\end{itemize}
+
+\subsection*{Aan het einde}
+Als een proces klaar is met pingpongen maar het andere nog niet, mag het niet zomaar termineren. Het andere proces zou dan immers
+vast kunnen komen te zitten, omdat het niet in bezit is van de page en de eigenaar al getermineerd is. Om deze situatie te voorkomen,
+laten we het ouderproces, dat altijd als eerste klaar is omdat het begint, de page onvoorwaardelijk naar het andere proces sturen.
+Als het andere proces er op dat moment niet op zit te wachten, is dat niet erg: de page wordt dan gebufferd in de pipe. Het ouderproces
+negeert vervolgens het \verb+SIGUSR1+ signaal en roept \verb+waitpid()+ aan om te wachten op het kindproces. Het kind kan nu bezit
+nemen van de page en zijn werk afmaken zonder dat de ouder nog iets hoeft te doen.
 
 \end{document}
