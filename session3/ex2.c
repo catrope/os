@@ -28,7 +28,7 @@ void segvHandler(int sig, siginfo_t *info, void *context) {
 	/* Signal the other process */
 	kill(otherPID, SIGUSR1);
 	/* Unprotect the page, must happen before reading it in */
-	mprotect(page, PAGESIZE, PROT_WRITE | PROT_READ);
+	mprotect(page, PAGESIZE, PROT_READ | PROT_WRITE);
 	/* Read the page from the pipe */
 	bytesRead = 0;
 	bytesLeft = PAGESIZE;
