@@ -18,7 +18,7 @@
 Op regel 7 wordt \verb+PAGESIZE+ gedefini\"eerd als de grootte van een page in het doel-OS.
 Voor Linux op een x32 is dat 4096 bytes. Op regels 11-14 wordt een functie gedefini\"eerd die
 \verb+"Memory was protected"+ print en het eerder beschermde geheugenblok vrijgeeft. Deze functie
-wordt door regel 20 als signal handler voor het \verb+SIGSEGV+ signaal eg\"installeerd.
+wordt door regel 20 als signal handler voor het \verb+SIGSEGV+ signaal ge\"installeerd.
 
 Het programma alloceert eerst een blok geheugen dat aligned is op een veelvoud van \verb+PAGESIZE+;
 dit gebeurt op regel 25. Regels 31 en 32 schrijven nu naar dat blok geheugen; dit gaat goed
@@ -34,7 +34,8 @@ De tweede keer slaagt de schrijfactie wel, omdat de handler de bescherming heeft
 Regel 44 print nu \verb+val = 84+.
 
 \section*{Opgave 2}
-Onze shared pages implementatie gebruikt twee pipes om pages heen en weer te sturen, en
+Onze shared pages implementatie gebruikt twee pipes (\'e\'en voor communicatie van kind naar ouder en \'e\'en voor andersom;
+dezelfde pipe voor beide gebruiken zorgt voor bugs) om pages heen en weer te sturen, en
 \verb+SIGUSR1+ om te signaleren dat het andere proces de page wil hebben. De processen
 doen ping-pong met busy waiting. De \verb+turn+ variabele is een \verb+int+ die de eerste
 4 bytes van de page in beslag neemt.
@@ -70,7 +71,64 @@ Als een proces klaar is met pingpongen maar het andere nog niet, mag het niet zo
 vast kunnen komen te zitten, omdat het niet in bezit is van de page en de eigenaar al getermineerd is. Om deze situatie te voorkomen,
 laten we het ouderproces, dat altijd als eerste klaar is omdat het begint, de page onvoorwaardelijk naar het andere proces sturen.
 Als het andere proces er op dat moment niet op zit te wachten, is dat niet erg: de page wordt dan gebufferd in de pipe. Het ouderproces
-negeert vervolgens het \verb+SIGUSR1+ signaal en roept \verb+waitpid()+ aan om te wachten op het kindproces. Het kind kan nu bezit
+laat vervolgens alle toekomstige \verb+SIGUSR1+ signalen negeren en roept \verb+waitpid()+ aan om te wachten op het kindproces. Het kind kan nu bezit
 nemen van de page en zijn werk afmaken zonder dat de ouder nog iets hoeft te doen.
+
+\subsection*{Race conditions voorkomen}
+De enige staat die wordt bijgehouden in de processen, is de beschermingsstatus van de lokale kopie van de page. Deze staat wordt
+alleen door interactie vanuit de signal handlers veranderd, dus het is vrij makkelijk om te zorgen dat hij consistent blijft. Het
+enige wat we hoeven te doen is zorgen dat de signal handler voor \verb+SIGSEGV+ niet onderbroken kan worden door de handler voor
+\verb+SIGUSR1+ (en andersom, al is dat zeer onwaarschijnlijk). Dit doen we door de handler voor het ene signaal te installeren met
+het andere signaal in de signal mask. Als er dan een \verb+SIGUSR1+ ontvangen wordt terwijl de handler voor \verb+SIGSEGV+ actief
+is, wordt de \verb+SIGUSR1+ geblokkeerd en pas afgeleverd (i.e. zijn handler wordt pas aangeroepen) als de \verb+SIGSEGV+ handler
+klaar is.
+
+\section*{Opgave 3}
+Als extra administratie houdt ieder proces in de variabele \verb+dirty+ de status van de page bij:
+\begin{itemize}
+\item \verb+dirty=0+: De page is up-to-date in beide processen. De page is beschermd tegen schrijven in beide processen.
+\item \verb+dirty=1+: De page is veranderd, het huidige proces heeft de nieuwste versie. De page is niet beschermd in het huidige proces en beschermd tegen lezen en schrijven in het andere proces.
+\item \verb+dirty=2+: De page is veranderd, het andere proces heeft de nieuwste versie. De page is beschermd tegen lezen en schrijven in het huidige proces en niet beschermd in het andere proces.
+\end{itemize}
+
+Initi\"eel is de page up-to-date in beide processen, dus \verb+dirty=0+. In deze situatie kunnen
+beide processen hun exemplaar zonder belemmering lezen, en is de page alleen tegen schrijven beschermd.
+Als een proces nu naar de page probeert te schrijven, haalt de \verb+SIGSEGV+ handler de schrijfbescherming
+weg, zet \verb+dirty=1+ en stuurt \verb+SIGUSR2+ naar het andere proces. Het andere proces ontvangt dit signaal,
+zet \verb+dirty=2+ en beschermt zijn exemplaar tegen lezen en schrijven. Als nu het andere proces probeert
+te lezen of schrijven, wordt de page uitgewisseld net zoals in opgave 2, en zetten beide processen \verb+dirty=0+
+en maken hun page read-only.
+
+\subsection*{Race conditions, with a vengance}
+Het blokkeren van signalen in de handlers is nog steeds nodig om een inconsistente staat te voorkomen, maar het
+is niet voldoende. Er kan nog steeds een race condition optreden als beide processen in de staat \verb+dirty=0+
+zitten en ze allebei tegelijk proberen te schrijven. Als het eerste proces \verb+SIGUSR2+ stuurt om het tweede
+te laten weten dat het de page veranderd heeft, maar het tweede proces al in de \verb+if(dirty == 0)+ branch
+zit, ontstaat een inconsistente staat. Beide processen komen eerst in de staat \verb+dirty=1+, laten
+allebei de schrijfactie toe, ontvangen vervolgens elkaars \verb+SIGUSR2+ signalen en komen in de staat
+\verb+dirty=2+. Hierna wordt bij de eerstvolgende lees- of schrijfactie de staat weer consistent. Het is
+dan wel zo dat \'e\'en van de conflicterende schrijfacties die de race condition veroorzaakte, verloren gaat.
+
+Dit is op te lossen door te voorkomen dat de twee processen tegelijk de \verb+SIGSEGV+ handler ingaan.
+Dit doen we door middel van een \verb+flock()+ op een van de twee pipes aan het begin van de handler.
+Merkwaardig hierbij is dat beide processen een exclusief lock op hetzelfde uiteinde van de pipe laten doen
+niet werkt (ze krijgen het allebei), maar als de processen ieder op een ander uiteinde van de pipe een lock
+vragen (i.e. de ouder lockt \verb+fds[0]+ en het kind lockt \verb+fds[1]+), is er wel wederzijdse uitsluiting.
+Het proces wat daar als tweede aankomt zal blokkeren tot het eerste proces aan het eind van de handler
+komt en de lock vrijgeeft. Het eerste proces zal in de tussentijd waarschijnlijk een \verb+SIGUSR1+ sturen;
+het tweede proces ontvangt en verwerkt dit en hervat automatisch het wachten op de lock. Als het lock vrijkomt
+en het tweede proces het verkrijgt, is \verb+dirty+ in de beide processen alweer in een consistente staat,
+en ontstaat er geen race condition.
+
+Bovendien is het zo dat in het specifieke geval van ons busy waiting programma deze race condition niet kan
+optreden: de enige assignment aan de shared variable \verb+turn+ vindt plaats bij het verlaten van de kritieke
+sectie, en daar kunnen de processen dus niet tegelijk zijn.
+
+\subsection*{Benchmarks}
+Deze optimalisatie vermindert het verkeer over de pipe, maar maakt opmerkelijk genoeg het programma juist langzamer.
+Op mijn machine duurden een miljoen iteraties met de code van opgave 2 17,7 seconden, en met de code van deze
+opgave 49,52 seconden. Het lijkt erop dat de extra overhead van \verb+flock()+ en \verb+SIGUSR2+, die nodig
+is voor het bijhouden en consistent houden van de staat, meer kost dan er bespaard wordt aan goedkope I/O
+over een pipe. Wellicht dat als de communicatie over een trager medium zoals een netwerk gaat, er wel winst is.
 
 \end{document}
