@@ -6,13 +6,14 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sys/file.h>
 
 #define PAGESIZE 4096
 
 void *page;
 int readFD, writeFD;
 pid_t otherPID;
-int myNum;
+int myNum, fds[4];
 int dirty; /* 0: both up-to-date, 1: mine up-to-date and dirty, 2: theirs up-to-date and dirty */
 
 void segvHandler(int sig, siginfo_t *info, void *context) {
@@ -24,6 +25,9 @@ void segvHandler(int sig, siginfo_t *info, void *context) {
 		signal(SIGSEGV, SIG_DFL);
 		return;
 	}
+	
+	/* Prevent both processes from going into the critical section below by having them lock each end of the pipe */
+	flock(fds[myNum], LOCK_EX);
 	
 	if(dirty == 0)
 	{
@@ -58,6 +62,7 @@ void segvHandler(int sig, siginfo_t *info, void *context) {
 		mprotect(page, PAGESIZE, PROT_READ);
 		dirty = 0;
 	}
+	flock(fds[myNum], LOCK_UN);
 }
 
 void usr1Handler(int sig)
@@ -70,6 +75,8 @@ void usr1Handler(int sig)
 	bytesWritten = 0;
 	bytesLeft = PAGESIZE;
 	p = page;
+	/* Protect the page from writing. We do this here because we're paranoid that the page might have been read-protected before. */
+	mprotect(page, PAGESIZE, PROT_READ);
 	do {
 		bytesWritten = write(writeFD, p + PAGESIZE - bytesLeft, bytesLeft);
 		if(bytesWritten < 0)
@@ -79,8 +86,6 @@ void usr1Handler(int sig)
 		}
 		bytesLeft -= bytesWritten;
 	} while(bytesLeft > 0);
-	/* Protect the page. Must happen after writing it out */
-	mprotect(page, PAGESIZE, PROT_READ);
 	dirty = 0;
 }
 
@@ -92,7 +97,7 @@ void usr2Handler(int sig)
 }
 
 int main(void) {
-	int ok, child, i, status, fds[4];
+	int ok, child, i, status;
 	struct sigaction segv, usr1, usr2;
 	int *turn;
 	
@@ -105,7 +110,6 @@ int main(void) {
 	
 	/* Initialize stuff */
 	turn = page;
-	*turn = 0;
 	dirty = 0;
 	mprotect(page, PAGESIZE, PROT_READ);
 	
@@ -148,12 +152,12 @@ int main(void) {
 	myNum = !child;
 	
 	/* Close unneeded pipes and set up FDs */
+	/* We need fds[0] and fds[1] for locking so don't close those */
 	if(child)
 	{
 		/* Parent */
 		readFD = fds[0];
 		writeFD = fds[3];
-		close(fds[1]);
 		close(fds[2]);
 	}
 	else
@@ -164,7 +168,7 @@ int main(void) {
 		close(fds[3]);
 	}
 	
-	for(i = 0; i < 100; i++)
+	for(i = 0; i < 10; i++)
 	{
 		
 		while(*turn != myNum);

@@ -135,11 +135,11 @@ int main(void) {
 	else
 		mprotect(page, PAGESIZE, PROT_NONE);
 	
-	for(i = 0; i < 100; i++)
+	for(i = 0; i < 10; i++)
 	{
 		
 		while(*turn != myNum);
-		printf("%d: %s\n", getpid(), myNum == 1 ? "Pong" : "Ping");
+		printf("%d: %s #%d\n", getpid(), myNum == 1 ? "Pong" : "Ping", i);
 		*turn = !myNum;
 	}
 	
